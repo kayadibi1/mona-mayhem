@@ -1,0 +1,187 @@
+---
+// Match History + Leaderboard. All game state lives client-side in
+// localStorage; this page renders it and can generate demo battles using the
+// battle engine from src/game/.
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Mona Mayhem — Match History</title>
+  </head>
+  <body>
+    <header>
+      <h1>🏆 Match History</h1>
+      <nav><a href="/">← Back to the Arena</a></nav>
+    </header>
+
+    <main>
+      <section class="summary">
+        <span><strong id="match-count">0</strong> matches recorded</span>
+        <div class="actions">
+          <button id="btn-demo" type="button">▶ Run demo battle</button>
+          <button id="btn-clear" type="button" class="danger">🗑 Clear history</button>
+        </div>
+      </section>
+
+      <p id="empty-state" class="empty">No matches yet. Run a demo battle to populate the board!</p>
+
+      <section id="leaderboard-wrap" hidden>
+        <h2>Leaderboard</h2>
+        <table>
+          <thead>
+            <tr><th>#</th><th>Fighter</th><th>W</th><th>L</th><th>D</th><th>Win&nbsp;%</th></tr>
+          </thead>
+          <tbody id="leaderboard-body"></tbody>
+        </table>
+      </section>
+
+      <section id="history-wrap" hidden>
+        <h2>Recent battles</h2>
+        <table>
+          <thead>
+            <tr><th>Played</th><th>Player 1</th><th>Player 2</th><th>Result</th><th>Ticks</th></tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        font-family: "Press Start 2P", ui-monospace, monospace;
+        background: #0d0221;
+        color: #e6e6fa;
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 24px 18px 60px;
+        line-height: 1.6;
+      }
+      header { text-align: center; margin-bottom: 24px; }
+      h1 { color: #ff2e88; text-shadow: 0 0 8px #ff2e8855; font-size: 1.6rem; }
+      h2 { color: #2ee6c9; font-size: 1.05rem; margin: 28px 0 10px; }
+      nav a, main a { color: #8be9fd; text-decoration: none; }
+      nav a:hover { text-decoration: underline; }
+      .summary {
+        display: flex; flex-wrap: wrap; gap: 12px;
+        align-items: center; justify-content: space-between;
+        border: 1px solid #2a1a4a; border-radius: 8px; padding: 14px 16px;
+        background: #160a33;
+      }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      button {
+        font: inherit; font-size: 0.8rem; cursor: pointer;
+        background: #2ee6c9; color: #04201b; border: none;
+        padding: 10px 14px; border-radius: 6px; transition: filter .15s;
+      }
+      button:hover { filter: brightness(1.12); }
+      button.danger { background: #ff5470; color: #2a0008; }
+      .empty { text-align: center; color: #9a8fc7; padding: 40px 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+      th, td { padding: 9px 8px; text-align: left; border-bottom: 1px solid #2a1a4a; }
+      th { color: #b8a9ff; text-transform: uppercase; font-size: 0.66rem; letter-spacing: 1px; }
+      tbody tr.win { background: rgba(46, 230, 80, 0.13); }
+      tbody tr.loss { background: rgba(255, 84, 112, 0.12); }
+      tbody tr.draw { background: rgba(150, 150, 170, 0.10); }
+      td.winner { color: #36f06a; font-weight: bold; }
+      tr.loss td.winner { color: #ffd166; }
+    </style>
+
+    <script>
+      import { runBattle } from "../game/battle";
+      import {
+        recordFromBattle,
+        buildLeaderboard,
+        loadHistory,
+        saveMatch,
+        clearHistory,
+      } from "../game/history";
+      import type { ContributionData } from "../game/types";
+
+      // A small roster of sample fighters with distinct contribution profiles,
+      // so demo battles produce varied, believable outcomes.
+      function fighter(
+        username: string,
+        totalContributions: number,
+        peak: number,
+        activeRatio: number,
+      ): ContributionData {
+        const stride = Math.max(2, Math.round(1 / activeRatio));
+        const days = Array.from({ length: 70 }, (_, i) => {
+          const active = i % stride === 0;
+          const count = active ? (i % 9 === 0 ? peak : 3) : 0;
+          const level = (count > 6 ? 4 : count > 3 ? 3 : count > 0 ? 2 : 0) as 0 | 1 | 2 | 3 | 4;
+          return { date: `2026-${String((i % 12) + 1).padStart(2, "0")}-01`, count, level };
+        });
+        return { username, totalContributions, range: { from: "2025-06", to: "2026-06" }, days };
+      }
+
+      const ROSTER: ContributionData[] = [
+        fighter("octocat", 1240, 9, 0.4),
+        fighter("torvalds", 3100, 16, 0.7),
+        fighter("gaearon", 2200, 12, 0.6),
+        fighter("sindresorhus", 5200, 22, 0.85),
+        fighter("yyx990803", 2750, 14, 0.65),
+        fighter("mojombo", 980, 7, 0.3),
+      ];
+
+      const $ = (id: string) => document.getElementById(id) as HTMLElement;
+      const fmtDate = (iso: string) => new Date(iso).toLocaleString();
+      const esc = (s: string) =>
+        s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+
+      function render() {
+        const records = loadHistory();
+        $("match-count").textContent = String(records.length);
+
+        const empty = records.length === 0;
+        $("empty-state").hidden = !empty;
+        ($("leaderboard-wrap") as HTMLElement).hidden = empty;
+        ($("history-wrap") as HTMLElement).hidden = empty;
+        if (empty) return;
+
+        $("leaderboard-body").innerHTML = buildLeaderboard(records)
+          .map(
+            (r, i) =>
+              `<tr><td>${i + 1}</td><td>${esc(r.username)}</td><td>${r.wins}</td>` +
+              `<td>${r.losses}</td><td>${r.draws}</td><td>${Math.round(r.winRate * 100)}%</td></tr>`,
+          )
+          .join("");
+
+        $("history-body").innerHTML = records
+          .map((m) => {
+            const draw = m.winner === "Draw";
+            const aWon = m.winner === m.playerA;
+            const cls = draw ? "draw" : aWon ? "win" : "loss";
+            const result = draw ? "Draw" : `🏆 ${esc(m.winner)}`;
+            return (
+              `<tr class="${cls}"><td>${fmtDate(m.playedAt)}</td><td>${esc(m.playerA)}</td>` +
+              `<td>${esc(m.playerB)}</td><td class="winner">${result}</td><td>${m.ticks}</td></tr>`
+            );
+          })
+          .join("");
+      }
+
+      function runDemo() {
+        let i = Math.floor(Math.random() * ROSTER.length);
+        let j = Math.floor(Math.random() * ROSTER.length);
+        while (j === i) j = Math.floor(Math.random() * ROSTER.length);
+        const seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+        const state = runBattle(ROSTER[i], ROSTER[j], seed);
+        const id = `${Date.now()}-${seed.toString(36)}`;
+        saveMatch(recordFromBattle(state, id, new Date().toISOString()));
+        render();
+      }
+
+      $("btn-demo").addEventListener("click", runDemo);
+      $("btn-clear").addEventListener("click", () => {
+        clearHistory();
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>
