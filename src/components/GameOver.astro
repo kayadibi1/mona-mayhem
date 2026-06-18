@@ -1,0 +1,131 @@
+---
+// GAME OVER screen — generated to follow .github/copilot-instructions.md:
+// retro-neon cyberpunk, CSS grid layout, #FF00FF primary button, Press Start 2P,
+// neon glow + CRT scanlines, arcade-announcer copy, reduced-motion safe.
+interface Props {
+  winner?: string;
+  loser?: string;
+  rounds?: number;
+}
+const { winner = "TORVALDS", loser = "OCTOCAT", rounds = 15 } = Astro.props;
+---
+
+<section class="crt-screen" aria-label="Game Over screen">
+  <div class="arcade-panel">
+    <p class="kicker">ROUND {rounds} &bull; K.O.</p>
+    <h1 class="game-over">GAME OVER</h1>
+    <p class="result"><span class="loser">{loser}</span> DEFEATED</p>
+    <p class="winner">WINNER: <span>{winner}</span></p>
+    <div class="actions">
+      <button class="neon-btn primary" id="rematch">REMATCH</button>
+      <button class="neon-btn secondary" id="coin">INSERT COIN</button>
+    </div>
+    <p class="blink">INSERT COIN TO CONTINUE</p>
+  </div>
+</section>
+
+<style>
+  /* Design tokens — exact values mandated by copilot-instructions.md */
+  .crt-screen {
+    --neon-magenta: #ff00ff;
+    --neon-cyan: #00ffff;
+    --neon-lime: #39ff14;
+    --neon-red: #ff1744;
+    --bg-void: #0d0221;
+    --bg-panel: #160a33;
+    --text: #e6e6fa;
+
+    font-family: "Press Start 2P", ui-monospace, monospace;
+    color: var(--text);
+    background: radial-gradient(circle at 50% 0%, #2a0a4a 0%, var(--bg-void) 70%);
+    display: grid;            /* RULE: always use CSS grid for layout */
+    place-items: center;      /* RULE: center with place-items */
+    min-height: 100%;
+    padding: 48px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  /* RULE: CRT scanline overlay via ::after */
+  .crt-screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+  }
+  .arcade-panel {
+    display: grid;            /* grid layout */
+    gap: 18px;
+    justify-items: center;
+    text-align: center;
+    background: var(--bg-panel);
+    border: 2px solid var(--neon-magenta);                         /* 2px neon border */
+    box-shadow: 0 0 18px var(--neon-magenta), inset 0 0 18px #ff00ff22;  /* glow */
+    border-radius: 10px;
+    padding: 36px 30px;
+    max-width: 460px;
+    position: relative;
+    z-index: 1;
+  }
+  .kicker { color: var(--neon-cyan); font-size: 0.7rem; letter-spacing: 2px; }
+  .game-over {
+    color: var(--neon-red);
+    font-size: 2.5rem;
+    letter-spacing: 3px;
+    line-height: 1.25;
+    text-shadow: 0 0 10px var(--neon-red), 0 0 26px #ff174488;     /* neon glow heading */
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .result { font-size: 0.82rem; }
+  .loser { color: var(--neon-red); }
+  .winner { color: var(--neon-lime); font-size: 0.9rem; text-shadow: 0 0 8px var(--neon-lime); }
+  .actions { display: grid; grid-auto-flow: column; gap: 14px; }   /* grid */
+  .neon-btn {
+    font: inherit;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 12px 16px;
+    min-height: 44px;          /* RULE: 44px min touch target */
+    border-radius: 6px;
+    border: 2px solid;
+    transition: filter 0.15s, box-shadow 0.15s;
+  }
+  .neon-btn.primary {          /* RULE: primary buttons use #FF00FF */
+    background: var(--neon-magenta);
+    color: #1a0033;
+    border-color: var(--neon-magenta);
+    box-shadow: 0 0 12px var(--neon-magenta);
+  }
+  .neon-btn.secondary {
+    background: transparent;
+    color: var(--neon-cyan);
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 10px #00ffff55;
+  }
+  .neon-btn:hover { filter: brightness(1.18); }
+  .blink { color: var(--neon-cyan); font-size: 0.62rem; animation: blink 1s steps(2) infinite; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* RULE: respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .game-over, .blink { animation: none; }
+  }
+</style>
+
+<script>
+  // 🔊 sfx: ko-explosion (fires when the GAME OVER screen mounts)
+  const rematch = document.getElementById("rematch");
+  const coin = document.getElementById("coin");
+  rematch?.addEventListener("click", () => {
+    // 🔊 sfx: round-start-bell
+    location.href = "/";
+  });
+  coin?.addEventListener("click", () => {
+    // 🔊 sfx: coin-insert
+    location.href = "/history";
+  });
+</script>
